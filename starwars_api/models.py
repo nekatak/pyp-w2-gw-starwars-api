@@ -33,8 +33,10 @@ class BaseModel(object):
         later in charge of performing requests to SWAPI for each of the
         pages while looping.
         """
+        name_of_child = cls.RESOURCE_NAME.title()
+        result = eval(name_of_child+"QuerySet")
         
-        return BaseQuerySet(cls)
+        return result()
         
 
 class People(BaseModel):
@@ -60,12 +62,14 @@ class Films(BaseModel):
 
 class BaseQuerySet(object):
 
-    def __init__(self, subclass):
-        self.index = 1
-        self.i=0
-        self.subclass=subclass
-        self.get_data = getattr(api_client, 'get_'+ self.subclass.RESOURCE_NAME)
-        #self.first_page=self.get_data("page=1")
+    def __init__(self):
+        self.index = 0
+        self.max_iterations=0
+        self.get_data = getattr(api_client, 'get_' + self.RESOURCE_NAME)
+        #self.i = 0
+        #self.subclass=subclass
+        #self.get_data = getattr(api_client, 'get_'+ self.subclass.RESOURCE_NAME)
+        self.page = 1
 
     def __iter__(self):
         return self
@@ -75,9 +79,24 @@ class BaseQuerySet(object):
         Must handle requests to next pages in SWAPI when objects in the current
         page were all consumed.
         """
+        data =  self.get_data("page="+str(self.page))
+        
+        if self.max_iterations != data["count"]:
+            obj = data["results"][self.index]
+            self.max_iterations += 1
+            if self.index < len(data["results"]) - 1:
+                self.index += 1
+            else:
+                self.index = 0
+            result = eval(self.RESOURCE_NAME.title())
+            return result(obj)
+        else:
+            raise StopIteration()
+        
 
+        """
         req = self.get_data("page="+str(self.index))
-        if not len(req["results"])<10:
+        if len(req["results"])<10:
             if self.i<len( req["results"] ) :
                 person=req["results"][self.i]
                 if self.subclass.RESOURCE_NAME=="people":
@@ -90,7 +109,8 @@ class BaseQuerySet(object):
             self.i=0
         else:
             raise StopIteration()
-            
+        """ 
+    
     next = __next__
 
     def count(self):
@@ -99,11 +119,10 @@ class BaseQuerySet(object):
         If the counter is not persisted as a QuerySet instance attr,
         a new request is performed to the API in order to get it.
         """
-        i=0
-        for x in self:
-            i+=1
-        return i
-
+        result = self.get_data()
+        
+        return result["count"]
+        
 
 class PeopleQuerySet(BaseQuerySet):
     RESOURCE_NAME = 'people'
